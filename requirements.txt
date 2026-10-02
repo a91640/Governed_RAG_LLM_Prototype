@@ -1,0 +1,11 @@
+langchain>=0.3
+langchain-community>=0.3
+langchain-text-splitters>=0.3
+langchain-ollama>=0.2
+langchain-qdrant>=0.2
+qdrant-client>=1.12
+langsmith>=0.2
+pypdf>=5.0
+pandas>=2.2
+requests>=2.32
+jupyter>=1.1
