@@ -6,6 +6,7 @@ executes device commands and never indexes private credentials intentionally.
 from __future__ import annotations
 
 import hashlib
+import uuid
 import os
 import re
 from collections import Counter
@@ -22,7 +23,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from qdrant_client import QdrantClient, models
 
 QDRANT_URL = "http://localhost:6333"
-COLLECTION = "network_operations_knowledge"
+COLLECTION = "governed_rag_llm_prototype_knowledge"
 EMBED_MODEL = "embeddinggemma"
 CHAT_MODEL = "llama3.2:3b"
 CHUNK_SIZE = 900
@@ -139,7 +140,7 @@ def make_chunks(documents: list[Document]) -> tuple[list[Document], list[str]]:
     for index, chunk in enumerate(chunks):
         source = chunk.metadata["source_file"]
         fingerprint = f"{source}|{chunk.metadata.get('page')}|{chunk.page_content}"
-        chunk_id = hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()
+        chunk_id = str(uuid.uuid5(uuid.NAMESPACE_URL, fingerprint))
         chunk.metadata["chunk_id"] = chunk_id
         chunk.metadata["chunk_index"] = index
         ids.append(chunk_id)
