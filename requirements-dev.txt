@@ -1,0 +1,4 @@
+# Test packages (python -m pip install -r requirements-dev.txt, then: python -m pytest tests -q)
+pytest
+httpx
+numpy

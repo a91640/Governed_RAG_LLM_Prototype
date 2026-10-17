@@ -1,0 +1,9 @@
+[browser]
+gatherUsageStats = false      # also skips the first-run e-mail prompt
+
+[server]
+headless = false
+maxUploadSize = 5
+
+[theme]
+primaryColor = "#1F3A5F"

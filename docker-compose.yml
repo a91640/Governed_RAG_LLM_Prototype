@@ -1,0 +1,38 @@
+# Qdrant + API + Streamlit UI. Ollama keeps running on the host (models stay on your machine).
+# Before the first start:  docker stop qdrant   (the old container uses the same port and data volume)
+# Then:                    set RAG_API_KEY in .env and run  docker compose up --build
+services:
+  qdrant:
+    image: qdrant/qdrant
+    volumes: ["qdrant_storage:/qdrant/storage"]
+    ports: ["6333:6333"]            # dashboard + notebook access; remove this line in production
+  api:
+    build: .
+    command: uvicorn api:app --host 0.0.0.0 --port 8000
+    environment:
+      QDRANT_URL: http://qdrant:6333
+      OLLAMA_HOST: http://host.docker.internal:11434
+      RAG_API_KEY: ${RAG_API_KEY:?set RAG_API_KEY in .env}
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+    volumes: ["./data:/app/data"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    depends_on: [qdrant]
+    ports: ["8000:8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+  ui:
+    build: .
+    command: streamlit run app.py --server.address 0.0.0.0 --server.port 8501 --server.headless true
+    environment:
+      RAG_API_URL: http://api:8000
+      RAG_API_KEY: ${RAG_API_KEY:?set RAG_API_KEY in .env}
+    volumes: ["./data:/app/data"]
+    depends_on:
+      api: {condition: service_healthy}
+    ports: ["8501:8501"]
+volumes:
+  qdrant_storage:
+    external: true                  # reuse the volume your current qdrant container already fills

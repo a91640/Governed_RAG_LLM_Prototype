@@ -1,0 +1,15 @@
+# Runtime packages for the API and the Streamlit interface (install with: python -m pip install -r requirements-app.txt)
+streamlit>=1.50
+fastapi
+uvicorn
+requests
+python-dotenv
+pydantic
+langgraph
+langchain-community
+langchain-text-splitters
+langchain-ollama
+langchain-qdrant
+qdrant-client>=1.12
+langsmith
+pypdf
