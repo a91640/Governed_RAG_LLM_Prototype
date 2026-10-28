@@ -4,14 +4,14 @@ The API owns the RAG workflow, authorization and logging; the Streamlit UI only 
 Settings come from environment variables (see README_APP.md), never from the UI code.
 """
 from __future__ import annotations
-
+from langsmith import traceable
 import logging
 import os
+import secrets
 import time
 from collections import defaultdict, deque
 from typing import Literal, Optional
-
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 try:
@@ -36,6 +36,25 @@ RATE_LIMIT_PER_MIN = int(os.getenv("RAG_RATE_LIMIT_PER_MIN", "30"))
 _hits: dict[str, deque] = defaultdict(deque)
 
 app = FastAPI(title="Governed RAG API", version="1.0")
+def require_admin(
+    x_admin_api_key: str | None = Header(default=None),
+) -> None:
+    expected_key = os.getenv("ADMIN_API_KEY")
+
+    if not expected_key:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Admin API key is not configured.",
+        )
+
+    if not x_admin_api_key or not secrets.compare_digest(
+        x_admin_api_key,
+        expected_key,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing admin API key.",
+        )
 
 
 def guard(request: Request, x_api_key: Optional[str] = Header(default=None)) -> None:
@@ -68,9 +87,12 @@ class FeedbackRequest(BaseModel):
 @app.get("/health")
 def health():
     return svc.health()                             # open on purpose: load balancers and probes use it
-
+@app.get("/admin/health", dependencies=[Depends(require_admin)])
+def admin_health():
+    return {"status": "ok", "role": "admin"}
 
 @app.post("/ask", dependencies=[Depends(guard)])
+@traceable(name="Governed RAG Question", run_type="chain")
 def ask(req: AskRequest):
     try:
         return svc.ask(req.question, req.role, req.source, req.session_id, req.mode)

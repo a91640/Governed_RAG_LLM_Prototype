@@ -22,8 +22,8 @@ from langchain_qdrant import QdrantVectorStore
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from qdrant_client import QdrantClient, models
 
-QDRANT_URL = "http://localhost:6333"
-COLLECTION = "governed_rag_llm_prototype_knowledge"
+QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
+COLLECTION = "network_kb_v1"
 EMBED_MODEL = "embeddinggemma"
 CHAT_MODEL = "llama3.2:3b"
 CHUNK_SIZE = 900

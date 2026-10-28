@@ -10,10 +10,13 @@ services:
     build: .
     command: uvicorn api:app --host 0.0.0.0 --port 8000
     environment:
-      QDRANT_URL: http://qdrant:6333
-      OLLAMA_HOST: http://host.docker.internal:11434
-      RAG_API_KEY: ${RAG_API_KEY:?set RAG_API_KEY in .env}
-      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+      QDRANT_URL: "http://qdrant:6333"
+      OLLAMA_HOST: "http://host.docker.internal:11434"
+      RAG_API_KEY: "${RAG_API_KEY:?set RAG_API_KEY in .env}"
+      LANGSMITH_TRACING: "${LANGSMITH_TRACING:-false}"
+      LANGSMITH_PROJECT: "${LANGSMITH_PROJECT:-RAG_LLM_Prototype}"
+      LANGSMITH_ENDPOINT: "${LANGSMITH_ENDPOINT:-https://eu.api.smith.langchain.com}"
+      LANGSMITH_API_KEY: "${LANGSMITH_API_KEY:?set LANGSMITH_API_KEY in .env}"
     volumes: ["./data:/app/data"]
     extra_hosts: ["host.docker.internal:host-gateway"]
     depends_on: [qdrant]

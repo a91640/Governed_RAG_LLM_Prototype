@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: rag-api
+  namespace: governed-rag
+spec:
+  selector:
+    app: rag-api
+  ports:
+    - port: 8000
+      targetPort: 8000
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rag-api
+  namespace: governed-rag
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rag-api
+  template:
+    metadata:
+      labels:
+        app: rag-api
+    spec:
+      containers:
+        - name: rag-api
+          image: a91640/governed-rag:1.0.2
+          imagePullPolicy: IfNotPresent
+          command:
+            - uvicorn
+          args:
+            - api:app
+            - --host
+            - 0.0.0.0
+            - --port
+            - "8000"
+          ports:
+            - containerPort: 8000
+
+          envFrom:
+            - secretRef:
+                name: rag-secrets
+
+          env:
+            - name: ADMIN_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: admin-api-key
+                  key: ADMIN_API_KEY
+            - name: QDRANT_URL
+              value: "http://qdrant:6333"
+            - name: OLLAMA_HOST
+              value: "http://host.docker.internal:11434"
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 20
+
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi

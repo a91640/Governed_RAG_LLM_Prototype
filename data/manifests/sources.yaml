@@ -1,0 +1,27 @@
+sources:
+  - id: openconfig-bgp
+    type: github_yang
+    repository: https://github.com/openconfig/public
+    path: release/models/bgp
+    topics: [bgp, routing, openconfig]
+    enabled: true
+
+  - id: openconfig-interfaces
+    type: github_yang
+    repository: https://github.com/openconfig/public
+    path: release/models/interfaces
+    topics: [interfaces, ethernet, openconfig]
+    enabled: true
+
+  - id: sonic-operations
+    type: github_docs
+    repository: https://github.com/sonic-net/SONiC
+    path: doc
+    topics: [sonic, switching, telemetry]
+    enabled: true
+
+  - id: rfc-netconf
+    type: rfc
+    number: 6241
+    topics: [netconf, configuration-management]
+    enabled: true
