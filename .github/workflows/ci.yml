@@ -19,7 +19,11 @@ jobs:
   test:
     name: Test application
     runs-on: ubuntu-latest
-
+    env:
+      AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+      AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+      AZURE_OPENAI_CHAT_DEPLOYMENT: ${{ secrets.AZURE_OPENAI_CHAT_DEPLOYMENT }}
+      AZURE_OPENAI_EMBEDDING_DEPLOYMENT: ${{ secrets.AZURE_OPENAI_EMBEDDING_DEPLOYMENT }}
     steps:
       - name: Check out source code
         uses: actions/checkout@v4
@@ -47,6 +51,7 @@ jobs:
     name: Build and push Docker image
     needs: test
     runs-on: ubuntu-latest
+        
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:

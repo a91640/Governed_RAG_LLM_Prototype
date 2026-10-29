@@ -18,7 +18,11 @@ os.chdir(ROOT)                                          # the corpus lives in da
 from langchain_core.embeddings import Embeddings          # noqa: E402
 from langchain_qdrant import QdrantVectorStore            # noqa: E402
 from qdrant_client import QdrantClient, models            # noqa: E402
-
+if os.getenv("GITHUB_ACTIONS") == "true":
+    os.environ.setdefault("AZURE_OPENAI_ENDPOINT", "https://example.openai.azure.com/")
+    os.environ.setdefault("AZURE_OPENAI_API_KEY", "test-key-not-used")
+    os.environ.setdefault("AZURE_OPENAI_CHAT_DEPLOYMENT", "rag-chat")
+    os.environ.setdefault("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "rag-embeddings")
 import agentic_rag as ag                                  # noqa: E402
 import rag_demo                                           # noqa: E402
 from services import rag_service as svc                   # noqa: E402
