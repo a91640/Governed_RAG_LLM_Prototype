@@ -13,3 +13,5 @@ langchain-qdrant
 qdrant-client>=1.12
 langsmith
 pypdf
+langchain-openai
+langchain-openai==1.7.3

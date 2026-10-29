@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, TypedDict
 
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
 from qdrant_client import models
 
@@ -75,15 +75,21 @@ _llm_cache: dict[bool, Any] = {}
 
 
 def get_llm(json_mode: bool = False):
-    if _LLM_OVERRIDE is not None:
-        return _LLM_OVERRIDE
     if json_mode not in _llm_cache:
-        kwargs = dict(model=CHAT_MODEL, temperature=0, num_ctx=NUM_CTX)
-        if json_mode:
-            kwargs["format"] = "json"
-        _llm_cache[json_mode] = ChatOllama(**kwargs)
-    return _llm_cache[json_mode]
+        kwargs = {
+            "model": CHAT_MODEL,
+            "api_key": os.environ["AZURE_OPENAI_API_KEY"],
+            "base_url": rag_demo.AZURE_OPENAI_BASE_URL,
+        }
 
+        if json_mode:
+            kwargs["model_kwargs"] = {
+                "response_format": {"type": "json_object"}
+            }
+
+        _llm_cache[json_mode] = ChatOpenAI(**kwargs)
+
+    return _llm_cache[json_mode]
 
 def _call(prompt: str, json_mode: bool = False) -> str:
     _STATS["llm"] += 1
@@ -126,25 +132,56 @@ def _vector_store():
     return _store
 
 
-def search_knowledge(query: str, source: str | None = None, role: str = "network_operator",
-                     k: int = TOP_K_PER_QUERY) -> list[dict]:
+def search_knowledge(
+    query: str,
+    source: str | None = None,
+    role: str = "network_operator",
+    k: int = TOP_K_PER_QUERY,
+) -> list[dict]:
     """READ-ONLY tool. Only public, active chunks the caller's role may see."""
     _STATS["search"] += 1
+
     must = [
-        models.FieldCondition(key="metadata.classification", match=models.MatchValue(value="public")),
-        models.FieldCondition(key="metadata.status", match=models.MatchValue(value="active")),
-        models.FieldCondition(key="metadata.allowed_roles", match=models.MatchAny(any=[role])),   # access control
+        models.FieldCondition(
+            key="metadata.classification",
+            match=models.MatchValue(value="public"),
+        ),
+        models.FieldCondition(
+            key="metadata.status",
+            match=models.MatchValue(value="active"),
+        ),
+        models.FieldCondition(
+            key="metadata.allowed_roles",
+            match=models.MatchAny(any=[role]),
+        ),
     ]
+
     if source and source != "any":
-        must.append(models.FieldCondition(key="metadata.source", match=models.MatchValue(value=source)))
-    pairs = _vector_store().similarity_search_with_score(query, k=k, filter=models.Filter(must=must))
-    return [{
-        "chunk_id": d.metadata.get("chunk_id"), "source": d.metadata.get("source"),
-        "product": d.metadata.get("product"), "file": d.metadata.get("source_file", ""),
-        "url": d.metadata.get("source_url", ""), "score": round(float(s), 3), "text": d.page_content,
-    } for d, s in pairs]
+        must.append(
+            models.FieldCondition(
+                key="metadata.source",
+                match=models.MatchValue(value=source),
+            )
+        )
 
+    pairs = _vector_store().similarity_search_with_score(
+        query,
+        k=k,
+        filter=models.Filter(must=must),
+    )
 
+    return [
+        {
+            "chunk_id": d.metadata.get("chunk_id"),
+            "source": d.metadata.get("source"),
+            "product": d.metadata.get("product"),
+            "file": d.metadata.get("source_file", ""),
+            "url": d.metadata.get("source_url", ""),
+            "score": round(float(s), 3),
+            "text": d.page_content[:300],
+        }
+        for d, s in pairs
+    ]
 # ----------------------------------------------------------------------------- graph state and nodes
 class State(TypedDict, total=False):
     question: str
@@ -248,7 +285,7 @@ def n_plan(state: State) -> dict:
 def n_retrieve(state: State) -> dict:
     per_query = []
     for sq in state["subqueries"]:
-        hits = search_knowledge(sq["query"], sq["source"], state["role"])
+        hits = search_knowledge(sq["query"], state.get("source"), state["role"])
         if hits:
             floor = hits[0]["score"] - RELATIVE_MARGIN             # drop weak chunks relative to this sub-query's best
             hits = [h for h in hits if h["score"] >= floor]

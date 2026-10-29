@@ -9,8 +9,9 @@ BODY = {"question": "How can I explicitly configure the BGP router ID in SONiC?"
 
 
 @pytest.fixture(autouse=True)
-def _reset():
+def _reset(monkeypatch):
     api._hits.clear()
+    monkeypatch.setattr(api, "API_KEY", "")
     yield
 
 

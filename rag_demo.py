@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import uuid
 import os
+from dotenv import load_dotenv
 import re
 from collections import Counter
 from datetime import date
@@ -17,15 +18,19 @@ from typing import Any
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_ollama import ChatOllama, OllamaEmbeddings
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_qdrant import QdrantVectorStore
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from qdrant_client import QdrantClient, models
 
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
-COLLECTION = "network_kb_v1"
-EMBED_MODEL = "embeddinggemma"
-CHAT_MODEL = "llama3.2:3b"
+COLLECTION = "network_kb_azure_v1"
+load_dotenv()
+EMBED_MODEL = os.environ["AZURE_OPENAI_EMBEDDING_DEPLOYMENT"]
+CHAT_MODEL = os.environ["AZURE_OPENAI_CHAT_DEPLOYMENT"]
+AZURE_OPENAI_BASE_URL = (
+    os.environ["AZURE_OPENAI_ENDPOINT"].rstrip("/") + "/openai/v1/"
+)
 CHUNK_SIZE = 900
 CHUNK_OVERLAP = 150
 TOP_K = 4
@@ -159,7 +164,7 @@ def get_vector_store() -> QdrantVectorStore:
     if COLLECTION not in names:
         client.create_collection(
             collection_name=COLLECTION,
-            vectors_config=models.VectorParams(size=768, distance=models.Distance.COSINE),
+            vectors_config=models.VectorParams(size=1536, distance=models.Distance.COSINE),
         )
         for field in ("classification", "source", "product", "status"):
             client.create_payload_index(
@@ -170,7 +175,13 @@ def get_vector_store() -> QdrantVectorStore:
     return QdrantVectorStore(
         client=client,
         collection_name=COLLECTION,
-        embedding=OllamaEmbeddings(model=EMBED_MODEL),
+        content_payload_key="text",
+        metadata_payload_key="metadata",
+       embedding=OpenAIEmbeddings(
+    model=EMBED_MODEL,
+    api_key=os.environ["AZURE_OPENAI_API_KEY"],
+    base_url=AZURE_OPENAI_BASE_URL,
+),
     )
 
 
@@ -186,25 +197,31 @@ def ingest(chunks: list[Document], ids: list[str]) -> int:
 def retrieve(question: str, product: str | None = None) -> list[tuple[Document, float]]:
     if product and product.lower() not in SOURCE_INFO:
         raise ValueError(f"product must be one of {list(SOURCE_INFO)}")
+
     must = [
         models.FieldCondition(
             key="metadata.classification",
             match=models.MatchValue(value="public"),
         ),
         models.FieldCondition(
-            key="metadata.status", match=models.MatchValue(value="active")
+            key="metadata.status",
+            match=models.MatchValue(value="active"),
         ),
     ]
+
     if product:
         must.append(
             models.FieldCondition(
-                key="metadata.source", match=models.MatchValue(value=product.lower())
+                key="metadata.source",
+                match=models.MatchValue(value=product.lower()),
             )
         )
-    return get_vector_store().similarity_search_with_relevance_scores(
-        question, k=TOP_K, filter=models.Filter(must=must)
-    )
 
+    return get_vector_store().similarity_search_with_relevance_scores(
+        question,
+        k=TOP_K,
+        filter=models.Filter(must=must),
+    )
 
 PROMPT = ChatPromptTemplate.from_template(
     """You are a read-only network-operations knowledge assistant.
@@ -236,17 +253,21 @@ def ask(question: str, product: str | None = None) -> dict[str, Any]:
             "reason": "insufficient evidence",
         }
     context = "\n\n".join(
-        f"[{index}] {document.page_content}\nSource: {document.metadata['source_url']}"
+       f"[{index}] {document.page_content}\nSource: {document.metadata.get('source_url', 'Approved public corpus')}"
         for index, (document, _) in enumerate(matches, start=1)
     )
-    answer = ChatOllama(model=CHAT_MODEL, temperature=0).invoke(
-        PROMPT.format(question=question, context=context)
-    ).content
+    answer = ChatOpenAI(
+    model=CHAT_MODEL,
+    api_key=os.environ["AZURE_OPENAI_API_KEY"],
+    base_url=AZURE_OPENAI_BASE_URL,
+).invoke(
+    PROMPT.format(question=question, context=context)
+).content
     sources = [
         {
             "citation": index,
             "product": document.metadata["product"],
-            "file": document.metadata["source_file"],
+           "file": document.metadata.get("source_file", document.metadata.get("source", "Approved public corpus")),
             "url": document.metadata["source_url"],
             "score": round(float(score), 3),
         }

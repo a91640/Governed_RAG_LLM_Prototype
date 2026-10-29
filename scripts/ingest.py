@@ -1,17 +1,17 @@
 from pathlib import Path
+from dotenv import load_dotenv
 import argparse
 import json
 import os
 import sys
 import uuid
-
-from langchain_ollama import OllamaEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from qdrant_client import QdrantClient, models
-
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 CHUNKS_FILE = Path("data/processed/network_kb_v1_chunks.jsonl")
-COLLECTION_NAME = "network_kb_v1"
-EMBEDDING_MODEL = "embeddinggemma"
-VECTOR_SIZE = 768
+COLLECTION_NAME = "network_kb_azure_v1"
+EMBEDDING_MODEL = os.environ["AZURE_OPENAI_EMBEDDING_DEPLOYMENT"]
+VECTOR_SIZE = 1536
 BATCH_SIZE = 16
 
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6336")
@@ -41,7 +41,11 @@ def main() -> None:
     print(f"Embedding model: {EMBEDDING_MODEL}")
 
     client = QdrantClient(url=QDRANT_URL)
-    embedder = OllamaEmbeddings(model=EMBEDDING_MODEL)
+    embedder = OpenAIEmbeddings(
+    model=EMBEDDING_MODEL,
+    api_key=os.environ["AZURE_OPENAI_API_KEY"],
+    base_url=os.environ["AZURE_OPENAI_ENDPOINT"].rstrip("/") + "/openai/v1/",
+)
 
     test_vector = embedder.embed_query("network telemetry test")
     actual_vector_size = len(test_vector)

@@ -9,3 +9,4 @@ pypdf>=5.0
 pandas>=2.2
 requests>=2.32
 jupyter>=1.1
+langchain-openai==1.7.3
