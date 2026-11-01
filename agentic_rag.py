@@ -75,6 +75,25 @@ _llm_cache: dict[bool, Any] = {}
 
 
 def get_llm(json_mode: bool = False):
+    
+    if _LLM_OVERRIDE is not None:
+        return _LLM_OVERRIDE
+
+    if json_mode not in _llm_cache:
+        kwargs = {
+            "model": CHAT_MODEL,
+            "api_key": os.environ["AZURE_OPENAI_API_KEY"],
+            "base_url": rag_demo.AZURE_OPENAI_BASE_URL,
+        }
+
+        if json_mode:
+            kwargs["model_kwargs"] = {
+                "response_format": {"type": "json_object"}
+            }
+
+        _llm_cache[json_mode] = ChatOpenAI(**kwargs)
+
+    return _llm_cache[json_mode]
     if json_mode not in _llm_cache:
         kwargs = {
             "model": CHAT_MODEL,

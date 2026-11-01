@@ -1,13 +1,15 @@
-# Qdrant + API + Streamlit UI. Ollama keeps running on the host (models stay on your machine).
-# Before the first start:  docker stop qdrant   (the old container uses the same port and data volume)
-# Then:                    set RAG_API_KEY in .env and run  docker compose up --build
 services:
   qdrant:
     image: qdrant/qdrant
-    volumes: ["qdrant_storage:/qdrant/storage"]
-    ports: ["6333:6333"]            # dashboard + notebook access; remove this line in production
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    ports:
+      - "6333:6333"
+
   api:
     build: .
+    env_file:
+      - .env
     command: uvicorn api:app --host 0.0.0.0 --port 8000
     environment:
       QDRANT_URL: "http://qdrant:6333"
@@ -16,26 +18,41 @@ services:
       LANGSMITH_TRACING: "${LANGSMITH_TRACING:-false}"
       LANGSMITH_PROJECT: "${LANGSMITH_PROJECT:-RAG_LLM_Prototype}"
       LANGSMITH_ENDPOINT: "${LANGSMITH_ENDPOINT:-https://eu.api.smith.langchain.com}"
-      LANGSMITH_API_KEY: "${LANGSMITH_API_KEY:?set LANGSMITH_API_KEY in .env}"
-    volumes: ["./data:/app/data"]
-    extra_hosts: ["host.docker.internal:host-gateway"]
-    depends_on: [qdrant]
-    ports: ["8001:8000"]
+      LANGSMITH_API_KEY: "${LANGSMITH_API_KEY:-}"
+    volumes:
+      - "./data:/app/data"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - qdrant
+    ports:
+      - "8001:8000"
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/health')"]
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
       interval: 20s
       timeout: 5s
       retries: 5
+
   ui:
     build: .
+    env_file:
+      - .env
     command: streamlit run app.py --server.address 0.0.0.0 --server.port 8501 --server.headless true
     environment:
-      RAG_API_URL: http://api:8000
-      RAG_API_KEY: ${RAG_API_KEY:?set RAG_API_KEY in .env}
-    volumes: ["./data:/app/data"]
+      RAG_API_URL: "http://api:8000"
+      RAG_API_KEY: "${RAG_API_KEY:?set RAG_API_KEY in .env}"
+    volumes:
+      - "./data:/app/data"
     depends_on:
-      api: {condition: service_healthy}
-    ports: ["8501:8501"]
+      api:
+        condition: service_healthy
+    ports:
+      - "8501:8501"
+
 volumes:
   qdrant_storage:
-    external: true                  # reuse the volume your current qdrant container already fills
+    external: true
