@@ -1,6 +1,6 @@
+import os
 from qdrant_client import QdrantClient, models
-
-QDRANT_URL = "http://localhost:6333"
+QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
 COLLECTION = "network_kb_azure_v1"
 
 
