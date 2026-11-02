@@ -28,8 +28,8 @@ spec:
     spec:
       containers:
         - name: rag-api
-          image: a91640/governed-rag:1.0.2
-          imagePullPolicy: IfNotPresent
+          image: a91640/governed-rag:latest
+          imagePullPolicy: Always
           command:
             - uvicorn
           args:
@@ -43,14 +43,9 @@ spec:
 
           envFrom:
             - secretRef:
-                name: rag-secrets
+                name: rag-runtime-secrets
 
           env:
-            - name: ADMIN_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: admin-api-key
-                  key: ADMIN_API_KEY
             - name: QDRANT_URL
               value: "http://qdrant:6333"
             - name: OLLAMA_HOST

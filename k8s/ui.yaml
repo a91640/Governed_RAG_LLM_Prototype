@@ -10,6 +10,7 @@ spec:
     - name: http
       port: 8501
       targetPort: 8501
+
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -28,8 +29,8 @@ spec:
     spec:
       containers:
         - name: rag-ui
-          image: a91640/governed-rag:1.0.1
-          imagePullPolicy: IfNotPresent
+          image: a91640/governed-rag:latest
+          imagePullPolicy: Always
           command:
             - streamlit
           args:
@@ -39,7 +40,8 @@ spec:
             - --server.port=8501
           ports:
             - containerPort: 8501
-                      readinessProbe:
+
+          readinessProbe:
             httpGet:
               path: /_stcore/health
               port: 8501
@@ -52,16 +54,19 @@ spec:
               port: 8501
             initialDelaySeconds: 40
             periodSeconds: 20
+
           envFrom:
             - secretRef:
-                name: rag-secrets
+                name: rag-runtime-secrets
+
           env:
             - name: RAG_API_URL
-              value: http://rag-api:8000
+              value: "http://rag-api:8000"
             - name: STREAMLIT_BROWSER_GATHER_USAGE_STATS
               value: "false"
             - name: STREAMLIT_SERVER_HEADLESS
               value: "true"
+
           resources:
             requests:
               cpu: 250m
