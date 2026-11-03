@@ -29,7 +29,7 @@ spec:
     spec:
       containers:
         - name: rag-ui
-          image: a91640/governed-rag:latest
+          image: a91640/governed-rag:sha-28c2ef177e79ad3fc6c1e0eb5a0c7164ae652579
           imagePullPolicy: Always
           command:
             - streamlit
