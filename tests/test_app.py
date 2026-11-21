@@ -1,6 +1,6 @@
 import sys
 from pathlib import Path
-
+import os
 import pytest
 from fastapi.testclient import TestClient
 from streamlit.testing.v1 import AppTest
@@ -10,7 +10,21 @@ from services import rag_service as svc
 
 ROOT = Path(__file__).resolve().parents[1]
 
+@pytest.fixture(autouse=True)
+def _isolate_ui_backend(monkeypatch):
+    from services import client as client_module
 
+    original_setting = client_module._setting
+
+    # Default UI tests to the in-process backend.
+    monkeypatch.setenv("RAG_API_URL", "")
+
+    def test_setting(name):
+        if name == "RAG_API_URL":
+            return os.getenv(name, "")
+        return original_setting(name)
+
+    monkeypatch.setattr(client_module, "_setting", test_setting)
 def app(page="app.py"):
     return AppTest.from_file(str(ROOT / page), default_timeout=90)
 

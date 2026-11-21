@@ -195,25 +195,31 @@ def ingest(chunks: list[Document], ids: list[str]) -> int:
 
 
 def retrieve(question: str, product: str | None = None) -> list[tuple[Document, float]]:
-    if product and product.lower() not in SOURCE_INFO:
+    normalized_product = product.lower() if product else None
+
+    if (
+        normalized_product
+        and normalized_product not in SOURCE_INFO
+        and normalized_product not in {"any", "all"}
+    ):
         raise ValueError(f"product must be one of {list(SOURCE_INFO)}")
 
     must = [
-        models.FieldCondition(
-            key="metadata.classification",
-            match=models.MatchValue(value="public"),
-        ),
-        models.FieldCondition(
-            key="metadata.status",
-            match=models.MatchValue(value="active"),
-        ),
-    ]
+    models.FieldCondition(
+        key="metadata.classification",
+        match=models.MatchValue(value="public"),
+    ),
+    models.FieldCondition(
+        key="metadata.status",
+        match=models.MatchValue(value="active"),
+    ),
+]
 
-    if product:
+    if normalized_product and normalized_product not in {"any", "all"}:
         must.append(
             models.FieldCondition(
-                key="metadata.source",
-                match=models.MatchValue(value=product.lower()),
+                key="source_id",
+                match=models.MatchValue(value=normalized_product),
             )
         )
 
@@ -222,6 +228,7 @@ def retrieve(question: str, product: str | None = None) -> list[tuple[Document, 
         k=TOP_K,
         filter=models.Filter(must=must),
     )
+
 
 PROMPT = ChatPromptTemplate.from_template(
     """You are a read-only network-operations knowledge assistant.
@@ -245,6 +252,7 @@ def ask(question: str, product: str | None = None) -> dict[str, Any]:
             "sources": [],
             "reason": "safety refusal",
         }
+
     matches = retrieve(question, product)
     if not matches or matches[0][1] < MIN_SCORE:
         return {
@@ -252,29 +260,33 @@ def ask(question: str, product: str | None = None) -> dict[str, Any]:
             "sources": [],
             "reason": "insufficient evidence",
         }
+
     context = "\n\n".join(
-       f"[{index}] {document.page_content}\nSource: {document.metadata.get('source_url', 'Approved public corpus')}"
+        f"[{index}] {document.page_content}\n"
+        f"Source: {document.metadata.get('relative_path', 'Approved public corpus')}"
         for index, (document, _) in enumerate(matches, start=1)
     )
+
     answer = ChatOpenAI(
-    model=CHAT_MODEL,
-    api_key=os.environ["AZURE_OPENAI_API_KEY"],
-    base_url=AZURE_OPENAI_BASE_URL,
-).invoke(
-    PROMPT.format(question=question, context=context)
-).content
+        model=CHAT_MODEL,
+        api_key=os.environ["AZURE_OPENAI_API_KEY"],
+        base_url=AZURE_OPENAI_BASE_URL,
+    ).invoke(
+        PROMPT.format(question=question, context=context)
+    ).content
+
     sources = [
         {
             "citation": index,
-            "product": document.metadata["product"],
-           "file": document.metadata.get("source_file", document.metadata.get("source", "Approved public corpus")),
-            "url": document.metadata["source_url"],
+            "product": document.metadata.get("source_id", "approved-public-corpus"),
+            "file": document.metadata.get("relative_path", "Approved public corpus"),
+            "url": document.metadata.get("relative_path", "Approved public corpus"),
             "score": round(float(score), 3),
         }
         for index, (document, score) in enumerate(matches, start=1)
     ]
-    return {"answer": answer, "sources": sources, "reason": "grounded answer"}
 
+    return {"answer": answer, "sources": sources, "reason": "grounded answer"}
 
 def display_answer(result: dict[str, Any]) -> None:
     print("ANSWER\n" + result["answer"])

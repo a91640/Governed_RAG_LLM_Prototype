@@ -15,7 +15,12 @@ VECTOR_SIZE = 1536
 BATCH_SIZE = 16
 
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6336")
-
+SOURCE_URLS = {
+    "openconfig-bgp": "https://github.com/openconfig/public/blob/master/",
+    "openconfig-interfaces": "https://github.com/openconfig/public/blob/master/",
+    "rfc-netconf": "https://www.rfc-editor.org/rfc/rfc6241",
+    "sonic-operations": "https://github.com/sonic-net/SONiC/blob/master/",
+}
 
 def load_chunks() -> list[dict]:
     if not CHUNKS_FILE.exists():
@@ -76,7 +81,6 @@ def main() -> None:
         ),
     )
     print(f"Created collection: {COLLECTION_NAME}")
-
     for start in range(0, len(chunks), BATCH_SIZE):
         batch = chunks[start:start + BATCH_SIZE]
         texts = [item["text"] for item in batch]
@@ -88,6 +92,7 @@ def main() -> None:
                 uuid.uuid5(uuid.NAMESPACE_URL, item["chunk_id"])
             )
 
+
             payload = {
                 "chunk_id": item["chunk_id"],
                 "source_id": item["source_id"],
@@ -95,7 +100,29 @@ def main() -> None:
                 "document_type": item["document_type"],
                 "chunk_number": item["chunk_number"],
                 "text": item["text"],
+                "metadata": {
+                    "chunk_id": item["chunk_id"],
+                    "source_id": item["source_id"],
+                    "source": item["source_id"],
+                    "product": item["source_id"],
+                    "relative_path": item["relative_path"],
+                    "source_file": item["relative_path"],
+                                     "source_url": (
+                        f'{SOURCE_URLS.get(item["source_id"], "")}{item["relative_path"]}'
+                        if item["source_id"] != "rfc-netconf"
+                        else SOURCE_URLS["rfc-netconf"]
+                    ),
+                    "document_type": item["document_type"],
+                    "chunk_number": item["chunk_number"],
+                    "classification": "public",
+                    "status": "active",
+                                        "allowed_roles": [
+                        "network_operator",
+                        "network_engineer",
+                    ],
+                },
             }
+
 
             points.append(
                 models.PointStruct(
@@ -113,7 +140,6 @@ def main() -> None:
 
         completed = min(start + BATCH_SIZE, len(chunks))
         print(f"Uploaded {completed}/{len(chunks)} chunks")
-
     count = client.count(
         collection_name=COLLECTION_NAME,
         exact=True,

@@ -83,8 +83,16 @@ def ask(question: str, role: str, source: str | None = None, session_id: str | N
         res = _session(session_id or uuid.uuid4().hex[:12], role, source).say(question)
     return {k: res.get(k) for k in ("run_id", "system", "role", "answer", "decision", "path", "questions", "seconds",
                                     "llm_calls", "search_calls", "top_score", "sources", "subqueries")} | {
-        "evidence": [{"product": h["product"], "file": os.path.basename(h["file"]), "score": h["score"], "text": h["text"][:300]}
-                     for h in res.get("evidence", [])]}
+                "evidence": [
+            {
+                key: (h.get(key) or "")[:300] if key == "text" else h.get(key)
+                for key in (
+                    "chunk_id", "point_id", "source", "product",
+                    "file", "url", "score", "text"
+                )
+            }
+            for h in res.get("evidence", [])
+        ]}
 
 
 # ----------------------------------------------------------------------------- knowledge base inventory
