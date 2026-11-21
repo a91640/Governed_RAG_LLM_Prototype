@@ -102,12 +102,25 @@ jobs:
           import urllib.request
           from pathlib import Path
 
-          secret = json.loads(os.environ["AKS_SECRET_JSON"])
+          raw = os.environ.get("AKS_SECRET_JSON", "").strip()
+
+          if not raw:
+              raise SystemExit("::error::AKS_SERVICE_ACCOUNT_SECRET is empty or unavailable.")
+
+          try:
+              secret = json.loads(raw)
+          except json.JSONDecodeError:
+              raise SystemExit("::error::AKS_SERVICE_ACCOUNT_SECRET contains invalid JSON.")
+
+          if not isinstance(secret, dict) or not isinstance(secret.get("data"), dict):
+              raise SystemExit("::error::Expected a Kubernetes Secret JSON object.")
+
+          if not all(secret["data"].get(key) for key in ("token", "ca.crt")):
+              raise SystemExit("::error::Secret JSON is missing data.token or data.ca.crt.")
           data = secret["data"]
           token = base64.b64decode(data["token"]).decode().strip()
           print(f"::add-mask::{token}")
           server = os.environ["AKS_SERVER"].strip().rstrip("/")
-
           config = {
               "apiVersion": "v1",
               "kind": "Config",
