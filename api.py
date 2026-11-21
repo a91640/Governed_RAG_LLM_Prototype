@@ -5,6 +5,7 @@ Settings come from environment variables (see README_APP.md), never from the UI 
 """
 from __future__ import annotations
 from langsmith import traceable
+from prometheus_fastapi_instrumentator import Instrumentator
 import logging
 import os
 import secrets
@@ -36,6 +37,19 @@ RATE_LIMIT_PER_MIN = int(os.getenv("RAG_RATE_LIMIT_PER_MIN", "30"))
 _hits: dict[str, deque] = defaultdict(deque)
 
 app = FastAPI(title="Governed RAG API", version="1.0")
+Instrumentator(
+    should_group_status_codes=False,
+    excluded_handlers=[r"^/metrics$", r"^/health$"],
+).instrument(
+    app,
+    latency_lowr_buckets=(
+        0.1, 0.5, 1, 2.5, 5, 10, 20, 30, 60, 120,
+    ),
+).expose(
+    app,
+    endpoint="/metrics",
+    include_in_schema=False,
+)
 def require_admin(
     x_admin_api_key: str | None = Header(default=None),
 ) -> None:

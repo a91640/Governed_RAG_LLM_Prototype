@@ -10,3 +10,4 @@ pandas>=2.2
 requests>=2.32
 jupyter>=1.1
 langchain-openai==1.7.3
+prometheus-fastapi-instrumentator==7.1.0

@@ -5,3 +5,4 @@ __pycache__/
 .ipynb_checkpoints/
 .git/
 *.tar
+agentic_rag_backup.py
