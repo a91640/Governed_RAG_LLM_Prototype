@@ -66,16 +66,13 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push image
+           - name: Build and push image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
           push: true
           tags: |
-            ${{ env.IMAGE_NAME }}:latest
-            ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
-               tags: |
             ${{ env.IMAGE_NAME }}:latest
             ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
 
@@ -87,8 +84,7 @@ jobs:
     timeout-minutes: 15
 
     env:
-      KUBECONFIG: ${{ runner.temp }}/aks-kubeconfig.json
-
+      KUBECONFIG: /tmp/aks-kubeconfig.json
     steps:
       - name: Configure Kubernetes connection
         id: connection
