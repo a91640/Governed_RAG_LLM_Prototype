@@ -75,7 +75,11 @@ jobs:
           tags: |
             ${{ env.IMAGE_NAME }}:latest
             ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
-              deploy:
+               tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+
+  deploy:
     name: Deploy to AKS
     needs: build-and-push
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
