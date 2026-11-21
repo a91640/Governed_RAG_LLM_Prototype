@@ -14,7 +14,9 @@ permissions:
 
 env:
   IMAGE_NAME: a91640/governed-rag
-
+concurrency:
+  group: governed-rag-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
   test:
     name: Test application
@@ -73,3 +75,94 @@ jobs:
           tags: |
             ${{ env.IMAGE_NAME }}:latest
             ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+              deploy:
+    name: Deploy to AKS
+    needs: build-and-push
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      KUBECONFIG: ${{ runner.temp }}/aks-kubeconfig.json
+
+    steps:
+      - name: Configure Kubernetes connection
+        id: connection
+        env:
+          AKS_SERVER: ${{ secrets.AKS_SERVER }}
+          AKS_SECRET_JSON: ${{ secrets.AKS_SERVICE_ACCOUNT_SECRET }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64
+          import json
+          import os
+          import ssl
+          import urllib.request
+          from pathlib import Path
+
+          secret = json.loads(os.environ["AKS_SECRET_JSON"])
+          data = secret["data"]
+          token = base64.b64decode(data["token"]).decode().strip()
+          print(f"::add-mask::{token}")
+          server = os.environ["AKS_SERVER"].strip().rstrip("/")
+
+          config = {
+              "apiVersion": "v1",
+              "kind": "Config",
+              "clusters": [{
+                  "name": "aks",
+                  "cluster": {
+                      "server": server,
+                      "certificate-authority-data": data["ca.crt"],
+                  },
+              }],
+              "users": [{
+                  "name": "github-deployer",
+                  "user": {"token": token},
+              }],
+              "contexts": [{
+                  "name": "aks",
+                  "context": {
+                      "cluster": "aks",
+                      "user": "github-deployer",
+                      "namespace": "governed-rag",
+                  },
+              }],
+              "current-context": "aks",
+          }
+
+          path = Path(os.environ["KUBECONFIG"])
+          path.write_text(json.dumps(config), encoding="utf-8")
+          path.chmod(0o600)
+
+          ca = base64.b64decode(data["ca.crt"]).decode()
+          request = urllib.request.Request(
+              server + "/version",
+              headers={"Authorization": f"Bearer {token}"},
+          )
+          with urllib.request.urlopen(
+              request,
+              context=ssl.create_default_context(cadata=ca),
+              timeout=30,
+          ) as response:
+              version = json.load(response)["gitVersion"].split("+")[0]
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"kubectl_version={version}\n")
+          PY
+
+      - name: Install matching kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: ${{ steps.connection.outputs.kubectl_version }}
+
+      - name: Deploy API and UI
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMAGE="${IMAGE_NAME}:sha-${GITHUB_SHA}"
+          kubectl -n governed-rag set image deployment/rag-api rag-api="$IMAGE"
+          kubectl -n governed-rag rollout status deployment/rag-api --timeout=300s
+          kubectl -n governed-rag set image deployment/rag-ui rag-ui="$IMAGE"
+          kubectl -n governed-rag rollout status deployment/rag-ui --timeout=300s
