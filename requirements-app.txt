@@ -16,3 +16,4 @@ pypdf
 langchain-openai
 langchain-openai==1.7.3
 prometheus-fastapi-instrumentator==7.1.0
+ddtrace==4.17.2
